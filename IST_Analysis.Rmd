@@ -1,0 +1,114 @@
+---
+title: "Untitled"
+author: "Marc McCoy"
+date: "20/03/2022"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warn=FALSE, message=FALSE)
+pack <- c("knitr", "rmarkdown", "knitcitations", "pander", "qwraps2")
+
+new.packages <- pack[!(pack %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(pack, require, character.only = TRUE)
+```
+
+```{css, echo=FALSE}
+.blackbox {
+  padding: 1em;
+  background: #EFFAFE;
+  color: black;
+  border: 1px solid grey;
+  border-radius: 10px;
+}
+
+.center {
+  text-align: center;
+}
+```
+```{r, echo=FALSE}
+library(ggplot2)
+library(Hmisc)
+library(GGally)
+library(lmtest)
+library(car)
+library(WebPower)
+library(nnet)
+library(AER)
+```
+```{r}
+#load the data
+stroke_df <- read.csv("stroke.csv", header = TRUE)
+```
+```{r}
+#set reference levels
+stroke_df$group <- as.factor(stroke_df$group)
+stroke_df$group <- relevel(stroke_df$group, ref="N")
+
+stroke_df$outcome <- as.factor(stroke_df$outcome)
+stroke_df$outcome <- relevel(stroke_df$outcome, ref="N")
+
+stroke_df$medHx <- as.factor(stroke_df$medHx)
+stroke_df$medHx <- relevel(stroke_df$medHx, ref="N")
+
+stroke_df$STYPE <- as.factor(stroke_df$STYPE)
+stroke_df$STYPE <- relevel(stroke_df$STYPE, ref="TACS")
+```
+
+```{r}
+modelA <- multinom(outcome~group+medHx+STYPE, data = stroke_df)
+summary(modelA)
+```
+```{r}
+coeftest(modelA)
+```
+```{r}
+exp(confint(modelA))
+```
+$$OR = \frac{\frac{P1(Y=IE|group=H)}{P1(Y=N|group=H)}} {\frac{P1(Y=IE|group=A)}{P1(Y=N|group=A)}} = \frac{\exp^{\alpha_{H}+\beta_{H}}} {\exp^{\alpha_{A}+\beta_{A}}} = \frac{\exp^{(-2.712169 - 0.35876289)}} {\exp^{(-2.712169 - 0.46177605)}}$$
+```{r}
+numerator = exp(-2.712169 - 0.35876289)
+denominator = exp(-2.712169 - 0.46177605)
+OR = numerator/denominator
+OR
+```
+Example 1):
+For patients diagnosed with an acute ischemic stroke, those patients who received high heparin at the randomization period, relative to patients who received aspirin, were 10.85% more likely to have another 'ischemic event (IE)" within the 14 day observation period. (OR = 1.108506). It is important to note in this case that the p value for the $\beta_{A}$ is 0.0002078, which is much lower than an alpha of 0.05. The p value for the $\beta_{H}$ is 0.0185012 which is also much smaller than an alpha of 0.05. Before we can blindly use the estimated beta coefficients from the model, we must assess if they are different from 0 via a z distribution as is shown above. The null hypothesis for the estimated coefficient is that $\beta=0$, and therefore we much see a p value of less than 0.05 to properly accept the alternative hypothesis that $\beta \neq 0$. in this example, the result directly answers the posed problem, "is there a difference in the outcome (i.e., acute ischemic stroke) between the aspirin and high heparin groups?" It is possible to see that the result does not hold for other types of events... for unknown events and haemorrhagic events, the p value for the aspirin and high heparin beta coefficients are not clearly less than an arbitrary alpha cutoff of 0.05.
+
+```{r}
+lrtest(modelA, "group") # Chi-Square=53.942, p=1.936e-08***
+```
+```{r}
+lrtest(modelA, "medHx") # Chi-Square=5.3109, p=0.8064
+```
+```{r}
+lrtest(modelA, "STYPE") # Chi-Square=504.92, p=< 2.2e-16 ***
+```
+
+$$OR = \frac{\frac{P1(Y=IE|group=AH)}{P1(Y=N|group=AH)}} {\frac{P1(Y=IE|group=N)}{P1(Y=N|group=N)}} = {\exp^{\beta_{AH}}}= \exp^{(-0.70000923)}$$
+```{r}
+OR = exp(-0.70000923)
+OR
+```
+```{r}
+percent_less_likely = (1 - OR) 
+percent_less_likely
+```
+
+Example 2):
+For patients diagnosed with an acute ischemic stroke, those patients who received aspirin and high heparin at the randomization period, relative to patients who received no medication, were 50.34% less likely to have another 'ischemic event (IE)" within the 14 day observation period. (OR = 0.4965807; 95% CI [0.35355328, 0.69746889], p-value = 5.375e-05).
+
+
+```{r}
+modelB <- multinom(outcome~group, data = stroke_df)
+summary(modelB)
+```
+```{r}
+coeftest(modelB)
+```
+```{r}
+exp(confint(modelB))
+```
